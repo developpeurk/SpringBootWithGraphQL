@@ -16,6 +16,8 @@ public class WalletTransaction {
     private Long id;
     private Long timestamp;
     private Double amount;
+    private Double currentSaleCurrencyPrice;
+    private Double currentPurchaseCurrencyPrice;
     @ManyToOne
     private Wallet wallet;
     @Enumerated(EnumType.STRING)

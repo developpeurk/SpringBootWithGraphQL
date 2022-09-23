@@ -1,6 +1,7 @@
 package org.lambarki.yassine.walletservice.service;
 
 import com.github.javafaker.Faker;
+import org.lambarki.yassine.walletservice.dtos.AddWalletRequestDTO;
 import org.lambarki.yassine.walletservice.entities.Currency;
 import org.lambarki.yassine.walletservice.entities.Wallet;
 import org.lambarki.yassine.walletservice.entities.WalletTransaction;
@@ -17,8 +18,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -29,6 +30,9 @@ public class WalletService {
     private CurrencyRepository currencyRepository;
     private WalletRepository walletRepository;
     private WalletTransactionRepository walletTransactionRepository;
+    private  Wallet destinationWallet;
+    private WalletTransaction sourceWalletTransaction;
+    private WalletTransaction destinationWalletTransaction;
 
     public WalletService(CurrencyRepository currencyRepository, WalletRepository walletRepository, WalletTransactionRepository walletTransactionRepository) {
         this.currencyRepository = currencyRepository;
@@ -56,7 +60,7 @@ public class WalletService {
         }
         Stream.of("MAD","USD","EUR","CAD").forEach(currencyCode->{
             Currency c = currencyRepository.findById(currencyCode)
-                            .orElseThrow(()->new RuntimeException(String.format("Currency %s not found", currencyCode)));
+                    .orElseThrow(()->new RuntimeException(String.format("Currency %s not found", currencyCode)));
             Wallet wallet = new Wallet();
             wallet.setBalance(faker.number().randomDouble(2,1000,9999));
             wallet.setCurrency(c);
@@ -71,6 +75,33 @@ public class WalletService {
             WalletTransactionAmount(faker, wallet);
         });
     }
+
+
+    public Wallet save(AddWalletRequestDTO walletRequestDTO){
+        Currency currency = currencyRepository.findById(walletRequestDTO.currencyCode()).orElseThrow(()-> new RuntimeException(String.format("Currency  '%s' not found", walletRequestDTO.currencyCode())));
+        Wallet wallet = Wallet.builder()
+                .balance(walletRequestDTO.balance())
+                .id(UUID.randomUUID().toString())
+                .createdAt(System.currentTimeMillis())
+                .userId("Hai")
+                .currency(currency)
+                .build();
+        return walletRepository.save(wallet);
+    }
+
+
+
+
+    public List<WalletTransaction> walletTransfer(String sourceWalletId, String destinationWalletId, Double amount){
+        Wallet sourceWallet = walletRepository.findById(sourceWalletId).orElseThrow(()->new RuntimeException(String.format("Wallet %s not found", sourceWalletId)));
+         destinationWallet = walletRepository.findById(destinationWalletId).orElseThrow(()->new RuntimeException(String.format("Wallet %s not found", destinationWalletId)));
+
+        debitWallet(amount, sourceWallet);
+        creditWallet(amount, destinationWallet);
+        return Arrays.asList(sourceWalletTransaction,destinationWalletTransaction);
+
+    }
+
 
     private void WalletTransactionAmount(Faker faker, Wallet wallet) {
         for (int i = 0; i <5 ; i++) {
@@ -93,5 +124,35 @@ public class WalletService {
             walletTransactionRepository.save(walletTransactionDebit);
             walletRepository.save(wallet);
         }
+    }
+
+    private void debitWallet(Double amount, Wallet destinWallet) {
+         sourceWalletTransaction =
+                WalletTransaction.builder()
+                        .timestamp(System.currentTimeMillis())
+                        .type(TransactionType.DEBIT)
+                        .amount(amount)
+                        .currentSaleCurrencyPrice(destinWallet.getCurrency().getSaleprice())
+                        .currentPurchaseCurrencyPrice(destinWallet.getCurrency().getPurchasePrice())
+                        .wallet(destinWallet)
+                        .build();
+        walletTransactionRepository.save(sourceWalletTransaction);
+        destinWallet.setBalance(destinWallet.getBalance() - amount);
+    }
+
+    private void creditWallet(Double amount, Wallet sourceWallet) {
+
+        Double convertedAmount = amount * (destinationWallet.getCurrency().getSaleprice() / sourceWallet.getCurrency().getPurchasePrice());
+        destinationWalletTransaction =
+                WalletTransaction.builder()
+                        .timestamp(System.currentTimeMillis())
+                        .type(TransactionType.CREDIT)
+                        .amount(convertedAmount)
+                        .wallet(destinationWallet)
+                        .currentSaleCurrencyPrice(sourceWallet.getCurrency().getSaleprice())
+                        .currentPurchaseCurrencyPrice(sourceWallet.getCurrency().getPurchasePrice())
+                        .build();
+        walletTransactionRepository.save(destinationWalletTransaction);
+        sourceWallet.setBalance(sourceWallet.getBalance() + amount);
     }
 }

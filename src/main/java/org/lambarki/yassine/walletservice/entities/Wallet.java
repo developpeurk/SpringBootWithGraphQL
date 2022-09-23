@@ -1,6 +1,7 @@
 package org.lambarki.yassine.walletservice.entities;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -11,7 +12,7 @@ import javax.persistence.OneToMany;
 import java.util.List;
 
 @Entity
-@Data @AllArgsConstructor @NoArgsConstructor
+@Data @AllArgsConstructor @NoArgsConstructor @Builder
 public class Wallet {
     @Id
     private String id;
